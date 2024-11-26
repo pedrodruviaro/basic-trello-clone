@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import Draggable from 'vuedraggable'
 import ModalDialog from '@/components/ModalDialog.vue'
-import { reactive, ref } from 'vue'
-import type { List } from '@/types'
+import { computed, reactive, ref } from 'vue'
+import type { Card, List } from '@/types'
 
 const lists = reactive<List[]>([
   {
@@ -29,13 +29,36 @@ const lists = reactive<List[]>([
 ])
 
 const isModalOpen = ref(false)
+const editingCard = ref<Card | null>(null)
+const editingListIndex = ref<number | null>(null)
+const modalMode = computed(() => (editingCard.value === null ? 'add' : 'edit'))
 
-const openModal = () => {
+const saveCard = (card: Card) => {
+  if (!editingListIndex.value) return
+
+  if (modalMode.value === 'add') {
+    const newId = Math.max(...lists.flatMap((list) => list.cards.map((c) => c.id)))
+    lists[editingListIndex.value].cards.push({ ...card, id: newId })
+  } else {
+    const cardIndex = lists[editingListIndex.value].cards.findIndex((c) => c.id === card.id)
+    if (cardIndex !== -1) {
+      lists[editingListIndex.value].cards[cardIndex] = card
+    }
+  }
+
+  closeModal()
+}
+
+const openModal = (listIndex: number, card?: Card) => {
+  editingListIndex.value = listIndex
+  editingCard.value = card === undefined ? null : card
   isModalOpen.value = true
 }
 
 const closeModal = () => {
   isModalOpen.value = false
+  editingCard.value = null
+  editingListIndex.value = null
 }
 </script>
 
@@ -44,14 +67,17 @@ const closeModal = () => {
     <div class="flex gap-5 py-5 overflow-x-auto">
       <article
         class="bg-gray-100 p-3 rounded-lg min-w-[250px] flex flex-col"
-        v-for="list in lists"
+        v-for="(list, listIndex) in lists"
         :key="list.id"
       >
         <h2 class="font-medium mb-2">{{ list.title }}</h2>
 
         <Draggable :list="list.cards" item-key="id" group="cards">
           <template #item="{ element }">
-            <div class="bg-white p-2 my-2 rounded shadow cursor-pointer">
+            <div
+              class="bg-white p-2 my-2 rounded shadow cursor-pointer"
+              @click="openModal(listIndex, element)"
+            >
               <span class="text-sm font-medium">{{ element.title }}</span>
               <p class="text-xs text-gray-400">{{ element.description }}</p>
             </div>
@@ -61,7 +87,7 @@ const closeModal = () => {
         <div class="mt-auto">
           <button
             class="w-full bg-transparent hover:bg-white rounded text-gray-500 p-2 text-left mt-2 text-sm font-medium"
-            @click="openModal"
+            @click="openModal(listIndex)"
           >
             &plus; Add Card
           </button>
@@ -69,6 +95,12 @@ const closeModal = () => {
       </article>
     </div>
 
-    <ModalDialog :is-open="isModalOpen" @close="closeModal" />
+    <ModalDialog
+      :is-open="isModalOpen"
+      :card="editingCard"
+      :mode="modalMode"
+      @close="closeModal"
+      @save="saveCard"
+    />
   </main>
 </template>
